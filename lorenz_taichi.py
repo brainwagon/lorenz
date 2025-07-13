@@ -35,6 +35,7 @@ def rk4(P, h):
     return P + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 @ti.func
+
 def grand():
     t = 0.0
     for i in range(16):
@@ -65,6 +66,10 @@ def spinup_kernel(h: ti.f32, steps: ti.i32):
     for i in range(steps):
         P = rk4(P, h)
     state[0] = P
+    Q = state[1]
+    for i in range(steps):
+        Q = rk4(Q, h)
+    state[1] = Q
 
 @ti.kernel
 def set_initial_states(P0: ti.types.vector(3, ti.f32), Q0: ti.types.vector(3, ti.f32)):
@@ -88,11 +93,11 @@ def march_and_plot(h: ti.f32, l: ti.f32):
 def main():
     gui = ti.GUI('Lorenz Attractor', res=(XSIZE, YSIZE), fast_gui=True)
     # Initial conditions
-    P0 = ti.Vector([1.0, 1.0, 1.0000001])
-    Q0 = ti.Vector([1.0, 1.0, 1.0 + 1e-4])
+    P0 = ti.Vector([1.0, 1.0, 1.0])
+    Q0 = ti.Vector([1.0, 1.0, 1.000001])
     # Set initial states
     set_initial_states(P0, Q0)
-    h = 0.0001
+    h = 0.001
     l = 0.05
     # Spin up to attractor
     spinup_kernel(0.1, 1000)
