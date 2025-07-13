@@ -100,7 +100,7 @@ def main():
     h = 0.001
     l = 0.05
     # Spin up to attractor
-    spinup_kernel(0.1, 1000)
+    spinup_kernel(0.1, 100)
     vshow = ti.Vector.field(3, dtype=ti.f32, shape=(XSIZE, YSIZE))
     while gui.running:
         fade()
