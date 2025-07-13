@@ -1,5 +1,4 @@
 import taichi as ti
-import math
 import numpy as np
 
 ti.init(arch=ti.gpu)
@@ -15,6 +14,9 @@ YSIZE = 720
 # Taichi fields for two color channels
 imgR = ti.field(dtype=ti.f32, shape=(YSIZE, XSIZE))
 imgG = ti.field(dtype=ti.f32, shape=(YSIZE, XSIZE))
+
+# Store states as Taichi fields (P and Q)
+state = ti.Vector.field(3, dtype=ti.f32, shape=2)  # state[0] = P, state[1] = Q
 
 @ti.func
 def lorenz(P):
@@ -34,7 +36,6 @@ def rk4(P, h):
 
 @ti.func
 def grand():
-    # Approximate sum of [-0.5, 0.5], 16 times, like your C code
     t = 0.0
     for i in range(16):
         t += ti.random(ti.f32) - 0.5
@@ -54,33 +55,44 @@ def plot(x: ti.f32, y: ti.f32, img: ti.template()):
         if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
             img[iy, ix] += 1.0
 
+@ti.kernel
+def spinup_kernel(h: ti.f32, steps: ti.i32):
+    for i in range(steps):
+        state[0] = rk4(state[0], h)
+
+@ti.kernel
+def set_initial_states(P0: ti.types.vector(3, ti.f32), Q0: ti.types.vector(3, ti.f32)):
+    state[0] = P0
+    state[1] = Q0
+
+@ti.kernel
+def march_and_plot(h: ti.f32, l: ti.f32):
+    t = 0.0
+    P = state[0]
+    Q = state[1]
+    while t < l:
+        P = rk4(P, h)
+        plot(P[0], P[2], imgR)
+        Q = rk4(Q, h)
+        plot(Q[0], Q[2], imgG)
+        t += h
+    state[0] = P
+    state[1] = Q
+
 def main():
     gui = ti.GUI('Lorenz Attractor', res=(XSIZE, YSIZE), fast_gui=True)
     # Initial conditions
-    P = np.array([1.0, 1.0, 1.0000001], dtype=np.float32)
-    Q = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+    P0 = ti.Vector([1.0, 1.0, 1.0000001])
+    Q0 = ti.Vector([1.0, 1.0, 1.0 + 1e-4])
+    # Set initial states
+    set_initial_states(P0, Q0)
     h = 0.0001
     l = 0.05
-    # "Spin up" to attractor
-    for _ in range(1000):
-        P = rk4(ti.Vector(P), 0.1).numpy()
-    Q[:] = P
-    Q[2] += 1e-4
-
+    # Spin up to attractor
+    spinup_kernel(0.1, 1000)
     while gui.running:
         fade()
-        # March both particles for l seconds in h steps
-        PP = P.copy()
-        QQ = Q.copy()
-        t = 0.0
-        while t < l:
-            PP = rk4(ti.Vector(PP), h).numpy()
-            plot(PP[0], PP[2], imgR)
-            QQ = rk4(ti.Vector(QQ), h).numpy()
-            plot(QQ[0], QQ[2], imgG)
-            t += h
-        P[:] = PP
-        Q[:] = QQ
+        march_and_plot(h, l)
         # Normalize to [0,1] for display, gamma correct (≈pow(t, 0.4545))
         mR = np.max(imgR.to_numpy())
         mG = np.max(imgG.to_numpy())
