@@ -1,7 +1,7 @@
 import taichi as ti
 import numpy as np
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.cpu)
 
 # Lorenz parameters
 sigma = 10.0
@@ -12,8 +12,8 @@ XSIZE = 1280
 YSIZE = 720
 
 # Taichi fields for two color channels
-imgR = ti.field(dtype=ti.f32, shape=(YSIZE, XSIZE))
-imgG = ti.field(dtype=ti.f32, shape=(YSIZE, XSIZE))
+imgR = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
+imgG = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
 
 # Store states as Taichi fields (P and Q)
 state = ti.Vector.field(3, dtype=ti.f32, shape=2)  # state[0] = P, state[1] = Q
@@ -47,18 +47,24 @@ def fade():
         imgR[y, x] *= 0.9
         imgG[y, x] *= 0.9
 
-@ti.kernel
-def plot(x: ti.f32, y: ti.f32, img: ti.template()):
+@ti.func
+def plot_func(x: ti.f32, y: ti.f32, img: ti.template()):
     for p in range(100):
         ix = int((x + 20) / 40.0 * XSIZE + grand())
         iy = int((y / 50.0) * YSIZE + grand())
         if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
-            img[iy, ix] += 1.0
+            img[ix, iy] += 1.0
+
+@ti.kernel
+def plot(x: ti.f32, y: ti.f32, img: ti.template()):
+    plot_func(x, y, img)
 
 @ti.kernel
 def spinup_kernel(h: ti.f32, steps: ti.i32):
+    P = state[0]
     for i in range(steps):
-        state[0] = rk4(state[0], h)
+        P = rk4(P, h)
+    state[0] = P
 
 @ti.kernel
 def set_initial_states(P0: ti.types.vector(3, ti.f32), Q0: ti.types.vector(3, ti.f32)):
@@ -72,9 +78,9 @@ def march_and_plot(h: ti.f32, l: ti.f32):
     Q = state[1]
     while t < l:
         P = rk4(P, h)
-        plot(P[0], P[2], imgR)
+        plot_func(P[0], P[2], imgR)
         Q = rk4(Q, h)
-        plot(Q[0], Q[2], imgG)
+        plot_func(Q[0], Q[2], imgG)
         t += h
     state[0] = P
     state[1] = Q
@@ -97,12 +103,16 @@ def main():
         mR = np.max(imgR.to_numpy())
         mG = np.max(imgG.to_numpy())
         m = max(mR, mG, 1e-6)
-        show = np.zeros((YSIZE, XSIZE, 3), dtype=np.float32)
+        show = np.zeros((XSIZE, YSIZE, 3), dtype=np.float32)
         ir = imgR.to_numpy() / m
         ig = imgG.to_numpy() / m
         show[..., 0] = np.clip(ir, 0, 1) ** 0.4545
         show[..., 1] = np.clip(ig, 0, 1) ** 0.4545
-        gui.set_image(show)
+        # 
+        M, N, D = show.shape
+        vshow = ti.Vector.field(D, dtype=ti.f32, shape=(M, N))
+        vshow.from_numpy(show)
+        gui.set_image(vshow)
         gui.show()
 
 if __name__ == '__main__':
