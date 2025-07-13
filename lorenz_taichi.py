@@ -1,7 +1,17 @@
+import argparse
 import taichi as ti
 import numpy as np
 
-ti.init(arch=ti.gpu)
+
+# ugly to parse arguments here, but we need to figure out which arch
+# we are going to initialize taichi for, and these are all in global
+# variables.  We could definitely tidy this up.
+
+p = argparse.ArgumentParser()
+p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
+args = p.parse_args()
+
+ti.init(arch=ti.gpu if args.gpu else ti.cpu)
 
 # Lorenz parameters
 sigma = 10.0
