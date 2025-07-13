@@ -96,6 +96,7 @@ def main():
     l = 0.05
     # Spin up to attractor
     spinup_kernel(0.1, 1000)
+    vshow = ti.Vector.field(3, dtype=ti.f32, shape=(XSIZE, YSIZE))
     while gui.running:
         fade()
         march_and_plot(h, l)
@@ -109,8 +110,6 @@ def main():
         show[..., 0] = np.clip(ir, 0, 1) ** 0.4545
         show[..., 1] = np.clip(ig, 0, 1) ** 0.4545
         # 
-        M, N, D = show.shape
-        vshow = ti.Vector.field(D, dtype=ti.f32, shape=(M, N))
         vshow.from_numpy(show)
         gui.set_image(vshow)
         gui.show()
