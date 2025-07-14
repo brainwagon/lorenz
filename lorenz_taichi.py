@@ -32,8 +32,11 @@ sigma = 10.0
 beta = 8.0 / 3.0
 rho = 28.0
 
-XSIZE = 1920
-YSIZE = 1080
+if args.fullscreen:
+    XSIZE, YSIZE = 1920, 1080
+else:
+    XSIZE, YSIZE = 1280, 720
+
 
 imgR = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
 imgG = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
@@ -57,12 +60,25 @@ def rk4(P, h):
     k4 = lorenz(P + h * k3)
     return P + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
+#
+# This was the primitive version that I originally did in C
+#
 @ti.func
 def grand():
     t = 0.0
     for i in range(16):
         t += ti.random(ti.f32) - 0.5
     return t
+
+@ti.func
+def gauss_box_muller(stddev: ti.f32):
+    u1 = ti.random(ti.f32)
+    u2 = ti.random(ti.f32)
+    eps = 1e-8
+    r = ti.sqrt(-2.0 * ti.log(u1 + eps))
+    theta = 2.0 * ti.math.pi * u2
+    z = r * ti.cos(theta)
+    return z * stddev 
 
 @ti.kernel
 def fade():
@@ -73,8 +89,8 @@ def fade():
 @ti.func
 def plot_func(x: ti.f32, y: ti.f32, img: ti.template()):
     for p in range(100):
-        ix = int((x + 20) / 40.0 * XSIZE + grand())
-        iy = int((y / 50.0) * YSIZE + grand())
+        ix = int((x + 20) / 40.0 * XSIZE + gauss_box_muller(1.5))
+        iy = int((y / 50.0) * YSIZE + gauss_box_muller(1.5))
         if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
             img[ix, iy] += 1.0
 
