@@ -24,7 +24,9 @@ p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
 p.add_argument("-n", "--normalize", action="store_true", help="normalize screen brightness per frame")
 p.add_argument("-f", "--fullscreen", action="store_true", help="create a full screen window")
-p.add_argument("-s", "--spotsize", type=float, default=1.5, help="spot size (default %(default)s")
+p.add_argument("-s", "--spotsize", type=float, default=1., help="spot size (default %(default)s")
+p.add_argument("-m", "--maximum", type=float, default=1., help="maximum value")
+p.add_argument("--fade", type=float, default=0.9, help="fading value")
 args = p.parse_args()
 
 ti.init(arch=ti.gpu if args.gpu else ti.cpu)
@@ -82,10 +84,10 @@ def gauss_box_muller(stddev: ti.f32):
     return z * stddev 
 
 @ti.kernel
-def fade():
+def fade(k: ti.f32):
     for y, x in imgR:
-        imgR[y, x] *= 0.9
-        imgG[y, x] *= 0.9
+        imgR[y, x] *= k 
+        imgG[y, x] *= k
 
 @ti.func
 def erf(x):
@@ -202,12 +204,12 @@ def main():
     l = 0.05
     spinup_kernel(0.1, 100)
     while gui.running:
-        fade()
+        fade(args.fade)
         march_and_plot(h, l, args.spotsize)
         if args.normalize:
             m = find_max(imgR, imgG)
         else:
-            m = 1.
+            m = args.maximum
         normalize_and_gamma(imgR, imgG, vshow, m)
         gui.set_image(vshow)
         gui.show()
