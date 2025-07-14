@@ -132,7 +132,8 @@ def normalize_and_gamma(imgR: ti.template(), imgG: ti.template(), vshow: ti.temp
 
 def main():
     global args
-    gui = ti.GUI('Lorenz Attractor', res=(XSIZE, YSIZE), fast_gui=True)
+    mode = "GPU" if args.gpu else "CPU"
+    gui = ti.GUI(f'Lorenz Attractor ({mode})', res=(XSIZE, YSIZE), fast_gui=True)
     P0 = ti.Vector([1.0, 1.0, 1.0])
     Q0 = ti.Vector([1.0, 1.0, 1.000001])
     set_initial_states(P0, Q0)
