@@ -23,6 +23,7 @@ import taichi as ti
 p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
 p.add_argument("-n", "--normalize", action="store_true", help="normalize screen brightness per frame")
+p.add_argument("-f", "--fullscreen", action="store_true", help="create a full screen window")
 args = p.parse_args()
 
 ti.init(arch=ti.gpu if args.gpu else ti.cpu)
@@ -31,8 +32,8 @@ sigma = 10.0
 beta = 8.0 / 3.0
 rho = 28.0
 
-XSIZE = 1280
-YSIZE = 720
+XSIZE = 1920
+YSIZE = 1080
 
 imgR = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
 imgG = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
@@ -133,7 +134,7 @@ def normalize_and_gamma(imgR: ti.template(), imgG: ti.template(), vshow: ti.temp
 def main():
     global args
     mode = "GPU" if args.gpu else "CPU"
-    gui = ti.GUI(f'Lorenz Attractor ({mode})', res=(XSIZE, YSIZE), fast_gui=True)
+    gui = ti.GUI(f'Lorenz Attractor ({mode})', res=(XSIZE, YSIZE), fast_gui=True, fullscreen=args.fullscreen)
     P0 = ti.Vector([1.0, 1.0, 1.0])
     Q0 = ti.Vector([1.0, 1.0, 1.000001])
     set_initial_states(P0, Q0)
@@ -146,10 +147,13 @@ def main():
         if args.normalize:
             m = find_max(imgR, imgG)
         else:
-            m = 50.
+            m = 20.
         normalize_and_gamma(imgR, imgG, vshow, m)
         gui.set_image(vshow)
         gui.show()
+
+        if gui.get_event(ti.GUI.ESCAPE):
+            break
 
 if __name__ == '__main__':
     main()
