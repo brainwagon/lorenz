@@ -30,4 +30,8 @@ which is one of the reasons that I am embarking on this experiment).  In CPU mod
 60fps, but probably more like 40fps on the NVIDIA gpu I have (an RTX 4060) which should be a lot 
 faster.  I might tinker with this some more to try to understand what's going on.
 
-Still, a fun experiment!
+## Update
+
+I fixed numerous issues, and made lots of improvements.  Now I get 60fps in either CPU or FPU mode on 
+my desktop, whereas my wimpy laptop gets more like 40fps in CPU mode and even less in GPU mode (does it
+even have a GPU?)   It can also run in full screen mode now.
