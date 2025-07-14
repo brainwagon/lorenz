@@ -1,6 +1,25 @@
 import argparse
 import taichi as ti
 
+#
+#    __                        __       _     __   _ 
+#   / /__  _______ ___  ___   / /____ _(_)___/ /  (_)
+#  / / _ \/ __/ -_) _ \/_ /  / __/ _ `/ / __/ _ \/ / 
+# /_/\___/_/  \__/_//_//__/__\__/\_,_/_/\__/_//_/_/  
+#                        /___/                       
+#
+# A port of my original C code which was pretty crufty to use python/taichi
+# Ported via a conversation with copilot/chatgpt4.1 as an experiment.
+# 
+# I wasn't tremendously familiar with taichi, but while there were some false
+# starts with copilot having an understanding which wasn't much beyond my own,
+# it was not difficult to eventually reach a port of this code which operates
+# entirely via taichi fields for maximal perfomance, and can be used on 
+# either the CPU or GPU.
+#
+# Copyright 2025, Mark VandeWettering <mvandewettering@gmail.com>
+#
+
 p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
 p.add_argument("-n", "--normalize", action="store_true", help="normalize screen brightness per frame")
