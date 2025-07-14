@@ -88,29 +88,59 @@ def fade():
         imgG[y, x] *= 0.9
 
 @ti.func
-def plot_func(x: ti.f32, y: ti.f32, img: ti.template()):
-    for p in range(100):
-        ix = int((x + 20) / 40.0 * XSIZE + gauss_box_muller(1.5))
-        iy = int((y / 50.0) * YSIZE + gauss_box_muller(1.5))
-        if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
-            img[ix, iy] += 1.0
+def erf(x):
+    # Constants
+    a1 = 0.254829592
+    a2 = -0.284496736
+    a3 = 1.421413741
+    a4 = -1.453152027
+    a5 = 1.061405429
+    p  = 0.3275911
+
+    sign = 1.0
+    if x < 0:
+        sign = -1.0
+    x = ti.abs(x)
+
+    t = 1.0 / (1.0 + p * x)
+    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * ti.exp(-x * x)
+
+    return sign * y
 
 @ti.func
-def plot_func2(x: ti.f32, y: ti.f32, img: ti.template(), sigma: ti.f32 = 2.0, window: ti.i32 = 6):
+def gaussian_pixel_integral(xc: ti.f32, yc: ti.f32, px: ti.i32, py: ti.i32, sigma: ti.f32) -> ti.f32:
+    # xc, yc: center of the gaussian in pixel coordinates
+    # px, py: pixel indices
+    # sigma: stddev in pixel units
+
+    sqrt2 = ti.sqrt(2.0)
+    # Pixel covers [px, px+1), [py, py+1)
+    x0 = (px - xc) / sigma
+    x1 = (px + 1 - xc) / sigma
+    y0 = (py - yc) / sigma
+    y1 = (py + 1 - yc) / sigma
+
+    ix = 0.5 * (erf(x1 / sqrt2) - erf(x0 / sqrt2))
+    iy = 0.5 * (erf(y1 / sqrt2) - erf(y0 / sqrt2))
+    return ix * iy
+
+@ti.func
+def plot_func(x: ti.f32, y: ti.f32, img: ti.template(), sigma: ti.f32 = 2.0, window: ti.i32 = 6):
+    # Compute Gaussian center in pixel coordinates
     cx = (x + 20) / 40.0 * XSIZE
     cy = (y / 50.0) * YSIZE
+    # Integrate over a window of pixels around the center
     for dx in range(-window, window + 1):
         for dy in range(-window, window + 1):
             ix = int(cx + dx)
             iy = int(cy + dy)
             if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
-                # 2D Gaussian
-                g = ti.exp(-0.5 * (dx * dx + dy * dy) / (sigma * sigma))
+                g = gaussian_pixel_integral(cx, cy, ix, iy, sigma)
                 img[ix, iy] += g
 
 @ti.kernel
 def plot(x: ti.f32, y: ti.f32, img: ti.template()):
-    plot_func2(x, y, img)
+    plot_func(x, y, img)
 
 @ti.kernel
 def spinup_kernel(h: ti.f32, steps: ti.i32):
@@ -135,9 +165,9 @@ def march_and_plot(h: ti.f32, l: ti.f32, spotsize: ti.f32):
     Q = state[1]
     while t < l:
         P = rk4(P, h)
-        plot_func2(P[0], P[2], imgR, sigma=spotsize)
+        plot_func(P[0], P[2], imgR, sigma=spotsize)
         Q = rk4(Q, h)
-        plot_func2(Q[0], Q[2], imgG, sigma=spotsize)
+        plot_func(Q[0], Q[2], imgG, sigma=spotsize)
         t += h
     state[0] = P
     state[1] = Q
