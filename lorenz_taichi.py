@@ -1,11 +1,5 @@
 import argparse
 import taichi as ti
-import numpy as np
-
-
-# ugly to parse arguments here, but we need to figure out which arch
-# we are going to initialize taichi for, and these are all in global
-# variables.  We could definitely tidy this up.
 
 p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
@@ -13,7 +7,6 @@ args = p.parse_args()
 
 ti.init(arch=ti.gpu if args.gpu else ti.cpu)
 
-# Lorenz parameters
 sigma = 10.0
 beta = 8.0 / 3.0
 rho = 28.0
@@ -21,12 +14,11 @@ rho = 28.0
 XSIZE = 1280
 YSIZE = 720
 
-# Taichi fields for two color channels
 imgR = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
 imgG = ti.field(dtype=ti.f32, shape=(XSIZE, YSIZE))
 
-# Store states as Taichi fields (P and Q)
 state = ti.Vector.field(3, dtype=ti.f32, shape=2)  # state[0] = P, state[1] = Q
+vshow = ti.Vector.field(3, dtype=ti.f32, shape=(XSIZE, YSIZE))  # Taichi field for display
 
 @ti.func
 def lorenz(P):
@@ -45,7 +37,6 @@ def rk4(P, h):
     return P + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 @ti.func
-
 def grand():
     t = 0.0
     for i in range(16):
@@ -100,32 +91,38 @@ def march_and_plot(h: ti.f32, l: ti.f32):
     state[0] = P
     state[1] = Q
 
+@ti.kernel
+def find_max(imgR: ti.template(), imgG: ti.template()) -> ti.f32:
+    m = 0.0
+    for y, x in imgR:
+        m = max(m, imgR[y, x])
+        m = max(m, imgG[y, x])
+    return m
+
+@ti.kernel
+def normalize_and_gamma(imgR: ti.template(), imgG: ti.template(), vshow: ti.template(), m: ti.f32):
+    for y, x in imgR:
+        # Avoid division by zero
+        r = min(max(imgR[y, x] / m, 0.0), 1.0) if m > 1e-6 else 0.0
+        g = min(max(imgG[y, x] / m, 0.0), 1.0) if m > 1e-6 else 0.0
+        # Gamma correction
+        vshow[y, x][0] = r ** 0.4545
+        vshow[y, x][1] = g ** 0.4545
+        vshow[y, x][2] = 0.0
+
 def main():
     gui = ti.GUI('Lorenz Attractor', res=(XSIZE, YSIZE), fast_gui=True)
-    # Initial conditions
     P0 = ti.Vector([1.0, 1.0, 1.0])
     Q0 = ti.Vector([1.0, 1.0, 1.000001])
-    # Set initial states
     set_initial_states(P0, Q0)
     h = 0.001
     l = 0.05
-    # Spin up to attractor
     spinup_kernel(0.1, 100)
-    vshow = ti.Vector.field(3, dtype=ti.f32, shape=(XSIZE, YSIZE))
     while gui.running:
         fade()
         march_and_plot(h, l)
-        # Normalize to [0,1] for display, gamma correct (≈pow(t, 0.4545))
-        mR = np.max(imgR.to_numpy())
-        mG = np.max(imgG.to_numpy())
-        m = max(mR, mG, 1e-6)
-        show = np.zeros((XSIZE, YSIZE, 3), dtype=np.float32)
-        ir = imgR.to_numpy() / m
-        ig = imgG.to_numpy() / m
-        show[..., 0] = np.clip(ir, 0, 1) ** 0.4545
-        show[..., 1] = np.clip(ig, 0, 1) ** 0.4545
-        # 
-        vshow.from_numpy(show)
+        m = find_max(imgR, imgG)
+        normalize_and_gamma(imgR, imgG, vshow, m)
         gui.set_image(vshow)
         gui.show()
 
