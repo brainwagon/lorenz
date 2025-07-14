@@ -3,6 +3,7 @@ import taichi as ti
 
 p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
+p.add_argument("-n", "--normalize", action="store_true", help="normalize screen brightness per frame")
 args = p.parse_args()
 
 ti.init(arch=ti.gpu if args.gpu else ti.cpu)
@@ -111,6 +112,7 @@ def normalize_and_gamma(imgR: ti.template(), imgG: ti.template(), vshow: ti.temp
         vshow[y, x][2] = 0.0
 
 def main():
+    global args
     gui = ti.GUI('Lorenz Attractor', res=(XSIZE, YSIZE), fast_gui=True)
     P0 = ti.Vector([1.0, 1.0, 1.0])
     Q0 = ti.Vector([1.0, 1.0, 1.000001])
@@ -121,7 +123,10 @@ def main():
     while gui.running:
         fade()
         march_and_plot(h, l)
-        m = find_max(imgR, imgG)
+        if args.normalize:
+            m = find_max(imgR, imgG)
+        else:
+            m = 50.
         normalize_and_gamma(imgR, imgG, vshow, m)
         gui.set_image(vshow)
         gui.show()
