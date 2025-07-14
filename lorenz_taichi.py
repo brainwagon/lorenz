@@ -24,6 +24,7 @@ p = argparse.ArgumentParser()
 p.add_argument("-g", "--gpu", action="store_true", help="try to compile code for the GPU")
 p.add_argument("-n", "--normalize", action="store_true", help="normalize screen brightness per frame")
 p.add_argument("-f", "--fullscreen", action="store_true", help="create a full screen window")
+p.add_argument("-s", "--spotsize", type=float, default=1.5, help="spot size (default %(default)s")
 args = p.parse_args()
 
 ti.init(arch=ti.gpu if args.gpu else ti.cpu)
@@ -94,9 +95,22 @@ def plot_func(x: ti.f32, y: ti.f32, img: ti.template()):
         if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
             img[ix, iy] += 1.0
 
+@ti.func
+def plot_func2(x: ti.f32, y: ti.f32, img: ti.template(), sigma: ti.f32 = 2.0, window: ti.i32 = 6):
+    cx = (x + 20) / 40.0 * XSIZE
+    cy = (y / 50.0) * YSIZE
+    for dx in range(-window, window + 1):
+        for dy in range(-window, window + 1):
+            ix = int(cx + dx)
+            iy = int(cy + dy)
+            if 0 <= ix < XSIZE and 0 <= iy < YSIZE:
+                # 2D Gaussian
+                g = ti.exp(-0.5 * (dx * dx + dy * dy) / (sigma * sigma))
+                img[ix, iy] += g
+
 @ti.kernel
 def plot(x: ti.f32, y: ti.f32, img: ti.template()):
-    plot_func(x, y, img)
+    plot_func2(x, y, img)
 
 @ti.kernel
 def spinup_kernel(h: ti.f32, steps: ti.i32):
@@ -115,15 +129,15 @@ def set_initial_states(P0: ti.types.vector(3, ti.f32), Q0: ti.types.vector(3, ti
     state[1] = Q0
 
 @ti.kernel
-def march_and_plot(h: ti.f32, l: ti.f32):
+def march_and_plot(h: ti.f32, l: ti.f32, spotsize: ti.f32):
     t = 0.0
     P = state[0]
     Q = state[1]
     while t < l:
         P = rk4(P, h)
-        plot_func(P[0], P[2], imgR)
+        plot_func2(P[0], P[2], imgR, sigma=spotsize)
         Q = rk4(Q, h)
-        plot_func(Q[0], Q[2], imgG)
+        plot_func2(Q[0], Q[2], imgG, sigma=spotsize)
         t += h
     state[0] = P
     state[1] = Q
@@ -159,11 +173,11 @@ def main():
     spinup_kernel(0.1, 100)
     while gui.running:
         fade()
-        march_and_plot(h, l)
+        march_and_plot(h, l, args.spotsize)
         if args.normalize:
             m = find_max(imgR, imgG)
         else:
-            m = 20.
+            m = 1.
         normalize_and_gamma(imgR, imgG, vshow, m)
         gui.set_image(vshow)
         gui.show()
